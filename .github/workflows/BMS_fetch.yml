@@ -1,0 +1,46 @@
+name: BMS Advance Sales Fetcher
+
+on:
+  schedule:
+    # Every 2 hours, UTC  (adjust offset for IST = UTC+5:30)
+    - cron: '0 */2 * * *'
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90         # safety cap per run
+
+    steps:
+      # ── 1. Checkout repo ──────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Python + dependencies ──────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install playwright
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      # ── 3. Run fetcher ────────────────────────────────────────
+      - name: Run BMS fetcher
+        run: python BMS_AdvanceSales_run.py
+
+      # ── 4. Commit updated data/ files back to repo ────────────
+      - name: Commit & push updated JSON files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          # Only commit when there are actual changes
+          git diff --cached --quiet || git commit -m "chore: update advance sales data [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          git push
